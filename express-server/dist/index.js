@@ -17,14 +17,17 @@ const app = (0, express_1.default)();
 const PORT = 3000;
 app.use(express_1.default.json());
 const express_rate_limit_1 = require("express-rate-limit");
+const SECRET_KEY = "0x4AAAAAAAb-f-qqE4_6O63Imw2iIMhtLcU";
+const cors_1 = __importDefault(require("cors"));
+app.use((0, cors_1.default)());
 // Record<K,T> => K is the key value of this record type which is unique and T would be the value stored for that key value of type string
 const otpStore = {};
 const limiter = (0, express_rate_limit_1.rateLimit)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
-    standardHeaders: 'draft-7', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-    // store: ... , // Redis, Memcached, etc. See below.
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 3, // Limit each IP to 3 OTP requests per windowMs
+    message: 'Too many requests, please try again after 5 minutes',
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 //!this will use for all the requests in the server
 // app.use(limiter);
@@ -40,12 +43,39 @@ app.post("/generate-otp", limiter, (req, res) => __awaiter(void 0, void 0, void 
     console.log(`OTP for ${email} is ${otp}`);
     res.status(200).json({ message: "OTP generated and logged" });
 }));
-app.post("/reset-password", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email, otp, newPassword } = req.body;
+// app.post("/reset-password", async (req, res) => { 
+//     const { email, otp, newPassword } = req.body;
+//     if (!email || !otp || !newPassword) {
+//         return res.status(400).json({ message: "Email, OTP, and new password are required" });
+//     }
+//     if (otpStore[email] === otp) {
+//         console.log(`Password for ${email} has been reset to: ${newPassword}`);
+//         delete otpStore[email]; // Clear the OTP after use
+//         res.status(200).json({ message: "Password has been reset successfully" });
+//     } else {
+//         res.status(401).json({ message: "Invalid OTP" });
+//     }
+// });
+// Endpoint to reset password
+app.post('/reset-password', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { email, otp, newPassword, token } = req.body;
+    console.log(token);
+    let formData = new FormData();
+    formData.append('secret', SECRET_KEY);
+    formData.append('response', token);
+    const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+    const result = yield fetch(url, {
+        body: formData,
+        method: 'POST',
+    });
+    const challengeSucceeded = (yield result.json()).success;
+    if (!challengeSucceeded) {
+        return res.status(403).json({ message: "Invalid reCAPTCHA token" });
+    }
     if (!email || !otp || !newPassword) {
         return res.status(400).json({ message: "Email, OTP, and new password are required" });
     }
-    if (otpStore[email] === otp) {
+    if (Number(otpStore[email]) === Number(otp)) {
         console.log(`Password for ${email} has been reset to: ${newPassword}`);
         delete otpStore[email]; // Clear the OTP after use
         res.status(200).json({ message: "Password has been reset successfully" });
