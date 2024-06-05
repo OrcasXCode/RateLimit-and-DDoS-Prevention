@@ -2,11 +2,25 @@ import express from "express";
 const app = express();
 const PORT = 3000;
 app.use(express.json());
+import {rateLimit} from "express-rate-limit";
+
 
 // Record<K,T> => K is the key value of this record type which is unique and T would be the value stored for that key value of type string
 const otpStore: Record<string, string> = {};
 
-app.post("/generate-otp", async (req, res) => {
+
+const limiter = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 3, // Limit each IP to 3 OTP requests per windowMs
+    message: 'Too many requests, please try again after 5 minutes',
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+})
+
+//!this will use for all the requests in the server
+// app.use(limiter);
+
+app.post("/generate-otp", limiter , async (req, res) => {
     const email = req.body.email;
     if (!email) {
         return res.status(400).json({

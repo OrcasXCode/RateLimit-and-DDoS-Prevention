@@ -16,9 +16,19 @@ const express_1 = __importDefault(require("express"));
 const app = (0, express_1.default)();
 const PORT = 3000;
 app.use(express_1.default.json());
+const express_rate_limit_1 = require("express-rate-limit");
 // Record<K,T> => K is the key value of this record type which is unique and T would be the value stored for that key value of type string
 const otpStore = {};
-app.post("/generate-otp", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const limiter = (0, express_rate_limit_1.rateLimit)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+    standardHeaders: 'draft-7', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+    // store: ... , // Redis, Memcached, etc. See below.
+});
+//!this will use for all the requests in the server
+// app.use(limiter);
+app.post("/generate-otp", limiter, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const email = req.body.email;
     if (!email) {
         return res.status(400).json({
